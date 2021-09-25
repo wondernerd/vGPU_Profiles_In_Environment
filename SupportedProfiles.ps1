@@ -34,10 +34,10 @@ Function vGPUsInASystem {
 			$vGPULocations = "*"
 		} 
 		if("" -eq $vGPUHostState){ #if nothing is passed set the value to all states
-			$vGPUHostState = "connected,disconnected,notresponding,maintenance"
+			$vGPUHostState = "connected" #,disconnected,notresponding,maintenance"
 		}
 
-
+#echo "Running profiles function"
 # Create a list of GPU Specs
 		[System.Collections.ArrayList]$vGPUlist = @()
 			#Name, vGPU per GPU, vGPU per Board, physical GPUs per board
@@ -64,12 +64,11 @@ Function vGPUsInASystem {
 
 
 
-
 Try {
 		#get-vmhost -state $vGPUHostState -location $vGPULocations | ExtensionData.Config.SharedPassthruGpuTypes | ForEach-Object {
 		get-vmhost -state $vGPUHostState -location $vGPULocations | ForEach-Object { #itterate trhough the hosts
-			echo '------------------------------------------------------------'
-			echo "Host: " $_.name
+			#echo '------------------------------------------------------------'
+			#echo "Host: " $_.name
 							
 			$CurrGPU = 'empty' #Set to empty so it catches the garbage collection if the host has no GPUs
 			$_ | Get-VMHostPciDevice -deviceClass DisplayController -Name "NVIDIA Corporation NVIDIATesla*" | ForEach-Object {
@@ -82,6 +81,7 @@ Try {
 			$GPUalreadyHere = $vGPUlist.CardType | where { $_.ToLower() -eq $CurrGPU.ToLower() } | Select -First 1;  #Find if the GPU is already in the array
 			
 			#echo '------------------------------------------------------------'
+			#echo 'vGPU List:'
 			#echo $vGPUlist
 			#echo '------------------------------------------------------------'
 			#echo $vGPUlist | where { $_.CardType -eq "P4" }
@@ -90,8 +90,31 @@ Try {
 			#echo $GPUalreadyHere "bob" 
 			
 			if ($GPUalreadyHere -eq $null){  #The GPU is not in the array
-			
+				
+				#Added 8-3-21 as the profile size changed in a previous vSphere release
 				$LargestProfileSize4Host = 0 #Set to 0 for garbage collection
+				$_.ExtensionData.Config.SharedPassthruGpuTypes | ForEach-object { #itterate through the cards supported configs and find largest size
+					$CurrProfile = ($_ -split "-")[1] #Get just the profile  (ex: 8q)
+					#echo $CurrCard " : " $CurrProfile
+					
+					#Safety Check for 2b4 and 1b4 profiles which should be removed eventually
+					if ($CurrProfile -eq "2b4") {
+						$CurrProfile = "2b"
+					}
+					if ($CurrProfile -eq "1b4") {
+						$CurrProfile = "1b"
+					}
+					#echo "==============="
+					#echo $CurrProfile
+					$ProfileNum = $CurrProfile -replace "[^0-9]" , '' #get just the profile number
+					#echo $ProfileNum
+					
+					if ($ProfileNum -gt $LargestProfileSize4Host) {
+						$LargestProfileSize4Host = $ProfileNum #find the largest profile size and set it
+						#echo "Largest Profile Size set to: " $LargestProfileSize4Host
+					}
+				}
+				
 				$_.ExtensionData.Config.SharedPassthruGpuTypes | ForEach-object { #itterate through the cards supported configs
 					#echo "========================================================"
 					#echo "vGPU Profile: " $_ #(ex: grid_p4-8q)
@@ -109,8 +132,10 @@ Try {
 					if ($CurrProfile -eq "1b4") {
 						$CurrProfile = "1b"
 					}
-					
+					#echo "==============="
+					#echo $CurrProfile
 					$ProfileNum = $CurrProfile -replace "[^0-9]" , '' #get just the profile number
+					#echo $ProfileNum
 					
 					#########################################################################
 					#Deal with M series cards even though not likely to use this
@@ -147,27 +172,35 @@ Try {
 					
 					$vGPUsPerBoard = $vGPUperGPU * $GPUsOnBoard #Set the number of vGPUs per board based on GPUs per board times number of vGPUs per GPU chip
 					
-					echo '++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-					echo 'Add entry to array'
-					echo $_
+					#echo '++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++'
+					#echo 'Add entry to array'
+					#echo $_
 					#$obj = [pscustomobject]@{CardType="m10";vGPUname="grid_m10-8q";vGPUperGPU=1;vGPUperBoard=4; pGPUperBoard=4}; $vGPUlist.add($obj)|out-null
 					$obj = [pscustomobject]@{CardType=$CurrCard;vGPUname=$_; vGPUperGPU=$vGPUperGPU; vGPUperBoard=$vGPUsPerBoard; pGPUperBoard=$GPUsOnBoard}; $vGPUlist.add($obj)|out-null
-					echo '++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++'
+					#echo '++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++'
 				}					
 			}
-			echo $vGPUlist
+			#echo $vGPUlist
+			#echo "Just about to return"
+			
 		}
-
+		#echo $vGPUlist
+		#echo "this is what we want"
+		return $vGPUlist
 	}
 Catch {
 		write-Host "Error creating entries for vGPUs"
+		#echo "failed to create entries for vGPUs"
 		return -1 #return an invalid value so user can test
 		Break #stop working
 	}
 	
 }
 
+#echo "pre call"
 #Example: vGPUsInASystem "*" "connected"
 
-vGPUsInASystem "*" "connected"
+vGPUsInASystem "*" "connected" #, maintenance"
+
+#echo "Post Call"
 		
