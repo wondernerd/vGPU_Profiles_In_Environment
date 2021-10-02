@@ -1,6 +1,8 @@
 # vGPU_Profiles_In_Environment
 This script dynamically gathers the vGPU profiles of all specified hosts into an array. 
 
+This is a repost of material from my blog: https://www.wondernerd.net/blog/powershell-module-finding-vgpu-profiles/
+
 For those who’ve seen or are using my VDI by day Compute by Night PowerShell scripts you may have noticed that the vGPU profiles are entered manually in an array. Wouldn’t it be nice if those vGPU profiles could be easily captured and loaded into an array? That’s what this module does. This post is a deep dive on the PowerCLI module for finding vGPU profiles. It is now a key module in the VDI by day Compute by Night scripts and returns an object collection of vGPU profiles.
 List of vGPU profiles supported by a host as shown in the VMware Managed Object Browser (MOB)
 
